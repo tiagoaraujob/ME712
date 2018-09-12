@@ -1,0 +1,132 @@
+```{r}
+library(dplyr)
+library(ggplot2)
+library(reshape)
+
+dados_anom$DESCRICAOEGRESSO  <- iconv(dados_anom$DESCRICAOEGRESSO, from="UTF-8", to="latin1//TRANSLIT")
+dados_anom$SITUACAODISCIPLINA  <- iconv(dados_anom$SITUACAODISCIPLINA, from="UTF-8", to="latin1//TRANSLIT")
+dados_anom$CURRICULARIDADE  <- iconv(dados_anom$CURRICULARIDADE, from="UTF-8", to="latin1//TRANSLIT")
+dados_anom$NATUREZAESCOLAANTERIOR  <- iconv(dados_anom$NATUREZAESCOLAANTERIOR, from="UTF-8", to="latin1//TRANSLIT")
+
+
+for(i in 1:nrow(dados_anom)){
+  if(dados_anom$DESCRICAOEGRESSO[i]== "Conclusão de Curso")
+      dados_anom$DESCRICAOEGRESSO[i] <- "Conclusão"
+  else{
+    if(dados_anom$DESCRICAOEGRESSO[i]== "Ativo - Curso em andamento")
+        dados_anom$DESCRICAOEGRESSO[i] <- "Ativo"
+      else{
+        if(dados_anom$DESCRICAOEGRESSO[i]=="Ingressante sem Aproveitamento/Matrícula" | 
+           dados_anom$DESCRICAOEGRESSO[i]=="Ingressante sem Aproveitamento" |
+           dados_anom$DESCRICAOEGRESSO[i]=="Ingressante sem Matrícula")
+            dados_anom$DESCRICAOEGRESSO[i] <- "Reingresso"
+        else{
+          dados_anom$DESCRICAOEGRESSO[i] <- "Não Conclusao"
+        }
+      }
+    
+  }
+  ##################
+  if(dados_anom$SITUACAODISCIPLINA[i]=="Aprov.Por Nota/Conceito E Freq" | 
+     dados_anom$SITUACAODISCIPLINA[i]=="Aprovado Por Frequencia")
+        dados_anom$SITUACAODISCIPLINA[i] <- "Aprovado"
+  else{
+    if( dados_anom$SITUACAODISCIPLINA[i] == "Desistencia")
+         dados_anom$SITUACAODISCIPLINA[i] <- "Desistencia"
+    else{
+        dados_anom$SITUACAODISCIPLINA[i] <- "Reprovado"
+    }
+    
+  }
+    #####################3
+  if(dados_anom$CURRICULARIDADE[i]!="Obrigatória")
+    dados_anom$CURRICULARIDADE[i] <- "Nao Obrigatoria"
+}
+
+dados_anom$DESCRICAOEGRESSO <- as.factor(dados_anom$DESCRICAOEGRESSO )
+
+dados_anom$SITUACAODISCIPLINA <- as.factor(dados_anom$SITUACAODISCIPLINA)
+
+dados_anom$CURRICULARIDADE <- as.factor(dados_anom$CURRICULARIDADE)
+
+dados_anom$NATUREZAESCOLAANTERIOR <- as.factor(dados_anom$NATUREZAESCOLAANTERIOR)
+
+```
+
+
+
+```{r}
+
+dados_anom$Semestre <- 0
+
+for(i in 1:nrow(dados_anom)){
+  ano_ingresso <- dados_anom$ANOINGRESSO[i]
+  sem_ingresso <- dados_anom$PERINGRESSO[i]
+  ano_discip <- ifelse(test=dados_anom$ANOHISTORICO[i]!="(null)",yes=as.integer(dados_anom$ANOHISTORICO[i]),no=0)
+  sem_discip <- ifelse(dados_anom$PERHISTORIO[i]!="(null)",as.integer(dados_anom$PERHISTORIO[i]),0)
+  
+ if(ano_discip!=0){
+  if(ano_ingresso==ano_discip & sem_ingresso==sem_discip)
+    semestres_decor <- 1
+  if(ano_ingresso==ano_discip & sem_ingresso!=sem_discip)
+    semestres_decor <- 2
+  if(ano_ingresso!=ano_discip & sem_ingresso==sem_discip)
+    semestres_decor <- (ano_discip - ano_ingresso)*2+1
+  if(ano_ingresso!=ano_discip & sem_ingresso!=sem_discip){
+    if(sem_ingresso==1)
+      semestres_decor <- (ano_discip - ano_ingresso)*2+2
+    else
+      semestres_decor <- (ano_discip - ano_ingresso)*2
+  }
+  if(i>1)
+ if(dados_anom$RA_anom[i]==dados_anom$RA_anom[i-1] & abs(semestres_decor-dados_anom$Semestre[i-1])>1 )
+   semestres_decor <- dados_anom$Semestre[i-1]+1
+ }
+  dados_anom$Semestre[i] <- semestres_decor
+}
+
+conferencia <- dados_anom[,c(1,3,10,12,23,22)]
+
+```
+
+
+
+```{r}
+ggplot(tab_final,aes(x=factor(PAAIS),fill=DESCRICAOEGRESSO))+
+  geom_bar(position = "dodge",aes(stat = "mean"))
+```
+
+```{r}
+a <- dados_anom %>% group_by(RA_anom,Semestre,CURRICULARIDADE,SITUACAODISCIPLINA) %>% count()
+
+b <- cast(a,RA_anom~Semestre+CURRICULARIDADE+SITUACAODISCIPLINA,value = 'n')
+
+b <- b %>% arrange(RA_anom)
+
+dados_anom <- dados_anom %>% arrange(RA_anom)
+
+
+ras <- unique(dados_anom$RA_anom)
+
+ras <- ras[order(ras)]
+
+mat <- match(ras,dados_anom$RA_anom)
+
+crs <- dados_anom[mat,c(8,14:21)]
+
+dados_alunos <- cbind(crs,ras)
+
+
+
+b[is.na(b)] <- 0
+
+tab_final <- cbind(b,dados_alunos)
+tab_final$Censura <- ifelse(tab_final$DESCRICAOEGRESSO=="Conclusão",0,1)
+
+```
+
+```{r}
+
+```
+
+
